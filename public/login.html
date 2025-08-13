@@ -82,9 +82,22 @@
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-  <script src="firebase-config.js"></script>
-
   <script>
+    // YOUR FIREBASE CONFIG - replace with your actual config from Firebase console
+  const firebaseConfig = {
+    apiKey: "AIzaSyABwjZH3BgWW4eFXLx5PE-GVtumTeBMlsQ",
+    authDomain: "timeorganization-d6343.firebaseapp.com",
+    projectId: "timeorganization-d6343",
+    storageBucket: "timeorganization-d6343.firebasestorage.app",
+    messagingSenderId: "706925146380",
+    appId: "1:706925146380:web:aee86fcfcdd22c020bd929",
+    measurementId: "G-296T95D1ZP"
+  };
+
+    // Initialize Firebase app and Firestore
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
     async function sha256(message) {
       const msgBuffer = new TextEncoder().encode(message);
       const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -118,7 +131,7 @@
 
         localStorage.setItem("username", username);
         localStorage.setItem("name", doc.data().name);
-        window.location.href = "dashboard.html";
+        window.location.href = "home.html";
       } catch (error) {
         console.error("Login error:", error);
         alert("Something went wrong. Please try again.");
