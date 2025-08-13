@@ -1,59 +1,129 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Login • Time Organizer</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <title>Login</title>
+  <link rel="icon" href="/favicon.png" type="image/x-icon" />
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: url('background.png') no-repeat center center fixed;
+      background-size: cover;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .popup-container {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 12px;
+      padding: 30px;
+      width: 300px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      color: white;
+      text-align: center;
+      animation: fadeIn 0.5s ease-in-out;
+    }
+    .popup-container h2 {
+      margin-bottom: 20px;
+      font-weight: 500;
+    }
+    .popup-container input {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .popup-container button {
+      width: 100%;
+      padding: 10px;
+      background: #3498db;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 15px;
+      transition: background 0.3s ease;
+      margin-top: 10px;
+    }
+    .popup-container button:hover {
+      background: #2980b9;
+    }
+    .popup-container p {
+      margin-top: 15px;
+      font-size: 13px;
+    }
+    .popup-container a {
+      color: #ffcc70;
+      text-decoration: none;
+    }
+    .popup-container a:hover {
+      text-decoration: underline;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <nav>
-      <div class="brand">⏳ Time Organizer</div>
-      <div><a href="./index.html"><button class="ghost">Home</button></a></div>
-    </nav>
-
-    <div class="grid">
-      <section class="card" style="max-width:520px; margin:0 auto">
-        <h2>Welcome back</h2>
-        <form id="login-form" class="grid" style="gap:12px">
-          <div class="field">
-            <label>Email</label>
-            <input type="email" id="email" required placeholder="you@example.com" />
-          </div>
-          <div class="field">
-            <label>Password</label>
-            <input type="password" id="password" required placeholder="••••••••" />
-          </div>
-          <button class="primary" type="submit">Login</button>
-        </form>
-        <p><small class="help">No account? <a href="./signup.html">Create one</a>.</small></p>
-        <p id="error" class="help"></p>
-      </section>
-    </div>
+  <div class="popup-container">
+    <h2>Login</h2>
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+    <p>Don't have an account? <a href="signup.html">Sign Up</a></p>
   </div>
 
-  <script type="module">
-    import { auth } from "./firebase.js";
-    import { signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="firebase-config.js"></script>
 
-    onAuthStateChanged(auth, (user) => { if (user) window.location.href = "./home.html"; });
+  <script>
+    async function sha256(message) {
+      const msgBuffer = new TextEncoder().encode(message);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
 
-    const form = document.getElementById('login-form');
-    const errorEl = document.getElementById('error');
+    async function login() {
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value;
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      errorEl.textContent = '';
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
-      try {
-        await signInWithEmailAndPassword(auth, email, password);
-        window.location.href = "./home.html";
-      } catch (err) {
-        errorEl.textContent = err.message;
+      if (!username || !password) {
+        alert("Please fill in both fields.");
+        return;
       }
-    });
+
+      try {
+        const doc = await db.collection("users").doc(username).get();
+        if (!doc.exists) {
+          alert("User not found.");
+          return;
+        }
+
+        const hashedInput = await sha256(password);
+        const storedHashedPassword = doc.data().password;
+
+        if (hashedInput !== storedHashedPassword) {
+          alert("Incorrect password.");
+          return;
+        }
+
+        localStorage.setItem("username", username);
+        localStorage.setItem("name", doc.data().name);
+        window.location.href = "dashboard.html";
+      } catch (error) {
+        console.error("Login error:", error);
+        alert("Something went wrong. Please try again.");
+      }
+    }
   </script>
 </body>
 </html>
