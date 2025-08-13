@@ -1,351 +1,202 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Home • Time Organizer</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <title>Home</title>
+  <link rel="icon" href="/favicon.png" type="image/x-icon" />
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f4f4f4;
+    }
+    nav {
+      background: #3498db;
+      color: white;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    nav h1 {
+      font-size: 20px;
+      margin: 0;
+    }
+    nav button {
+      background: #e74c3c;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    nav button:hover {
+      background: #c0392b;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      padding: 20px;
+    }
+    h2 {
+      margin-bottom: 10px;
+    }
+    .friend-list, .requests-list {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .friend-item, .request-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .friend-item:last-child, .request-item:last-child {
+      border-bottom: none;
+    }
+    .btn {
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .btn.accept {
+      background: #2ecc71;
+      color: white;
+    }
+    .btn.accept:hover {
+      background: #27ae60;
+    }
+    .btn.decline {
+      background: #e74c3c;
+      color: white;
+    }
+    .btn.decline:hover {
+      background: #c0392b;
+    }
+  </style>
 </head>
 <body>
+
+  <nav>
+    <h1>Welcome, <span id="display-name"></span></h1>
+    <button onclick="logout()">Logout</button>
+  </nav>
+
   <div class="container">
-    <nav>
-      <div class="brand">⏳ Time Organizer</div>
-      <div style="display:flex; gap:8px">
-        <button id="logout" class="ghost">Logout</button>
-      </div>
-    </nav>
-
-    <div class="grid grid-2">
-      <section class="card">
-        <h3>Add a task</h3>
-        <form id="task-form" class="grid" style="gap:10px">
-          <div class="field">
-            <label>Task title</label>
-            <input id="task-title" required placeholder="Write blog post" />
-          </div>
-          <div class="field">
-            <label>Estimate (minutes)</label>
-            <input id="task-estimate" type="number" min="1" step="1" required placeholder="60" />
-          </div>
-          <button class="primary" type="submit">Add task</button>
-        </form>
-
-        <hr/>
-        <h3>Your tasks</h3>
-        <div id="tasks" class="list"></div>
-      </section>
-
-      <section class="card">
-        <h3>Timer</h3>
-        <div id="active-task" class="row" style="display:none"></div>
-        <div id="no-active-task" class="row">No active task</div>
-        <div style="display:flex; gap:8px; margin-top:10px">
-          <button id="start" class="primary">Start</button>
-          <button id="stop">Stop</button>
-          <button id="reset" class="ghost">Reset</button>
-        </div>
-        <p><small class="help">Pick a task, then Start. We store timestamps and compute duration accurately.</small></p>
-
-        <hr/>
-        <h3>Treasure Box</h3>
-        <div class="kpi">
-          <div class="pill">Net saved: <span id="treasure">0</span> min</div>
-          <div class="pill">Goal: <span id="goal">120</span> min</div>
-        </div>
-        <div class="progress" style="margin:10px 0"><div id="bar"></div></div>
-        <form id="goal-form" class="grid" style="gap:8px; max-width:320px">
-          <div class="field">
-            <label>Update goal (minutes)</label>
-            <input id="goal-input" type="number" min="1" step="1" />
-          </div>
-          <button class="ghost" type="submit">Save goal</button>
-        </form>
-      </section>
+    <div class="requests-list">
+      <h2>Friend Requests</h2>
+      <div id="friend-requests"></div>
     </div>
 
-    <div class="footer">Data syncs in real-time. Stay honest, collect time. ✨</div>
+    <div class="friend-list">
+      <h2>Your Friends</h2>
+      <div id="friends"></div>
+    </div>
   </div>
 
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script>
+    // Firebase config (fixed storageBucket URL)
+    const firebaseConfig = {
+      apiKey: "AIzaSyABwjZH3BgWW4eFXLx5PE-GVtumTeBMlsQ",
+      authDomain: "timeorganization-d6343.firebaseapp.com",
+      projectId: "timeorganization-d6343",
+      storageBucket: "timeorganization-d6343.appspot.com",
+      messagingSenderId: "706925146380",
+      appId: "1:706925146380:web:aee86fcfcdd22c020bd929",
+      measurementId: "G-296T95D1ZP"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
 
-<script>
-  // Your Firebase config (use your own)
-  const firebaseConfig = {
-    apiKey: "AIzaSyABwjZH3BgWW4eFXLx5PE-GVtumTeBMlsQ",
-    authDomain: "timeorganization-d6343.firebaseapp.com",
-    projectId: "timeorganization-d6343",
-    storageBucket: "timeorganization-d6343.appspot.com",
-    messagingSenderId: "706925146380",
-    appId: "1:706925146380:web:aee86fcfcdd22c020bd929",
-    measurementId: "G-296T95D1ZP"
-  };
+    const username = localStorage.getItem("username");
+    const name = localStorage.getItem("name");
 
-  // Initialize Firebase app and services
-  firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
-  const db = firebase.firestore();
-
-  // UI refs
-  const logoutBtn = document.getElementById('logout');
-  const taskForm = document.getElementById('task-form');
-  const tasksEl = document.getElementById('tasks');
-  const activeTaskEl = document.getElementById('active-task');
-  const noActiveTaskEl = document.getElementById('no-active-task');
-  const startBtn = document.getElementById('start');
-  const stopBtn = document.getElementById('stop');
-  const resetBtn = document.getElementById('reset');
-  const treasureEl = document.getElementById('treasure');
-  const goalEl = document.getElementById('goal');
-  const goalForm = document.getElementById('goal-form');
-  const goalInput = document.getElementById('goal-input');
-  const bar = document.getElementById('bar');
-
-  taskForm.querySelector('button[type="submit"]').disabled = true;
-
-  let state = {
-    user: null,
-    tasks: [],
-    selectedTask: null,
-    startTime: null, // timestamp in ms
-    tickInterval: null,
-    treasureTime: 0,
-    goalMinutes: 120,
-  };
-
-  // Format minutes nicely
-  function formatMinutes(mm) {
-    const m = Math.floor(mm % 60);
-    const h = Math.floor(mm / 60);
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
-  }
-
-  function renderActive() {
-    if (state.selectedTask) {
-      activeTaskEl.style.display = 'flex';
-      noActiveTaskEl.style.display = 'none';
-
-      const elapsedMin = state.startTime ? Math.round((Date.now() - state.startTime) / 60000) : 0;
-
-      activeTaskEl.innerHTML = `
-        <div style="flex:1">
-          <div style="font-weight:700">${state.selectedTask.title}</div>
-          <small class="help">Estimate: ${state.selectedTask.estimatedMinutes} min · Elapsed: ${elapsedMin} min</small>
-        </div>
-      `;
-    } else {
-      activeTaskEl.style.display = 'none';
-      noActiveTaskEl.style.display = 'flex';
+    // Redirect to login if not logged in
+    if (!username) {
+      alert("Not logged in. Redirecting...");
+      window.location.href = "login.html";
     }
-  }
 
-  function setProgress(net, goal) {
-    state.treasureTime = net;
-    state.goalMinutes = goal;
+    document.getElementById("display-name").textContent = name || username;
 
-    treasureEl.textContent = net;
-    goalEl.textContent = goal;
+    const friendsDiv = document.getElementById("friends");
+    const requestsDiv = document.getElementById("friend-requests");
 
-    const pct = Math.max(0, Math.min(100, goal > 0 ? (net / goal) * 100 : 0));
-    bar.style.width = pct + '%';
-  }
-
-  function stopTicker() {
-    if (state.tickInterval) {
-      clearInterval(state.tickInterval);
-      state.tickInterval = null;
-    }
-  }
-
-  function startTicker() {
-    stopTicker();
-    state.tickInterval = setInterval(renderActive, 1000);
-  }
-
-  function taskRow(t) {
-    const row = document.createElement('div');
-    row.className = 'row';
-    row.innerHTML = `
-      <div style="flex:1">
-        <div style="font-weight:700">${t.title}</div>
-        <small class="help">Est: ${t.estimatedMinutes}m${t.actualMinutes !== null ? ` · Last: ${t.actualMinutes}m` : ''}${typeof t.timeDelta === 'number' ? ` · Δ ${t.timeDelta > 0 ? '+' : ''}${t.timeDelta}m` : ''}</small>
-      </div>
-      <div style="display:flex; gap:8px">
-        <button class="ghost select">Select</button>
-      </div>
-    `;
-    row.querySelector('.select').addEventListener('click', () => {
-      state.selectedTask = { id: t.id, title: t.title, estimatedMinutes: t.estimatedMinutes };
-      state.startTime = null;
-      stopTicker();
-      renderActive();
-    });
-    return row;
-  }
-
-  function requireAuth() {
-  return new Promise((resolve) => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      unsubscribe(); // only run once
-
-      if (!user) {
-        // delay redirect slightly to avoid loop on refresh
-        setTimeout(() => {
-          window.location.href = "./login.html";
-        }, 0);
-        return;
-      }
-
-      state.user = user;
-
-      const userRef = db.collection('users').doc(user.uid);
-
-      userRef.onSnapshot((snap) => {
-        if (snap.exists) {
-          const { treasureTime = 0, goalMinutes = 120 } = snap.data();
-          setProgress(treasureTime, goalMinutes);
-        } else {
-          userRef.set({ treasureTime: 0, goalMinutes: 120 }, { merge: true });
-        }
-      });
-
-      const tasksRef = userRef.collection('tasks').orderBy('createdAt', 'desc');
-      tasksRef.onSnapshot((snapshot) => {
-        state.tasks = [];
-        tasksEl.innerHTML = '';
-        snapshot.forEach(docu => {
-          const t = { id: docu.id, ...docu.data() };
-          state.tasks.push(t);
-          tasksEl.appendChild(taskRow(t));
+    function loadFriends() {
+      friendsDiv.innerHTML = "";
+      db.collection("friends")
+        .where("user", "==", username)
+        .where("accepted", "==", true)
+        .onSnapshot(snapshot => {
+          friendsDiv.innerHTML = "";
+          if (snapshot.empty) {
+            friendsDiv.innerHTML = "<p>No friends yet.</p>";
+            return;
+          }
+          snapshot.forEach(doc => {
+            const friendName = doc.data().friend;
+            friendsDiv.innerHTML += `<div class="friend-item"><span>${friendName}</span></div>`;
+          });
         });
-        if (state.selectedTask && !state.tasks.find(t => t.id === state.selectedTask.id)) {
-          state.selectedTask = null;
-          stopTicker();
-          renderActive();
-        }
+    }
+
+    function loadFriendRequests() {
+      requestsDiv.innerHTML = "";
+      db.collection("friends")
+        .where("friend", "==", username)
+        .where("accepted", "==", false)
+        .onSnapshot(snapshot => {
+          requestsDiv.innerHTML = "";
+          if (snapshot.empty) {
+            requestsDiv.innerHTML = "<p>No pending requests.</p>";
+            return;
+          }
+          snapshot.forEach(doc => {
+            const requester = doc.data().user;
+            requestsDiv.innerHTML += `
+              <div class="request-item">
+                <span>${requester}</span>
+                <div>
+                  <button class="btn accept" onclick="acceptRequest('${doc.id}', '${requester}')">Accept</button>
+                  <button class="btn decline" onclick="declineRequest('${doc.id}')">Decline</button>
+                </div>
+              </div>
+            `;
+          });
+        });
+    }
+
+    function acceptRequest(id, requester) {
+      db.collection("friends").doc(id).update({ accepted: true }).then(() => {
+        return db.collection("friends").add({
+          user: username,
+          friend: requester,
+          accepted: true
+        });
       });
+    }
 
-      taskForm.querySelector('button[type="submit"]').disabled = false;
-      resolve(user);
-    });
-  });
-}
+    function declineRequest(id) {
+      db.collection("friends").doc(id).delete();
+    }
 
+    function logout() {
+      localStorage.removeItem("username");
+      localStorage.removeItem("name");
+      window.location.href = "login.html";
+    }
 
-
-  async function addTask(title, estimated) {
-    const tasksRef = db.collection('users').doc(state.user.uid).collection('tasks');
-    await tasksRef.add({
-      title,
-      estimatedMinutes: Number(estimated),
-      actualMinutes: null,
-      timeDelta: null,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-  }
-
-  async function saveResult(taskId, actualMinutes) {
-    const taskRef = db.collection('users').doc(state.user.uid).collection('tasks').doc(taskId);
-    const userRef = db.collection('users').doc(state.user.uid);
-
-    const snap = await taskRef.get();
-    if (!snap.exists) return;
-
-    const data = snap.data();
-    const delta = Number(data.estimatedMinutes) - Number(actualMinutes);
-
-    await taskRef.update({
-      actualMinutes: Number(actualMinutes),
-      timeDelta: delta,
-      lastRunAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    await userRef.update({ treasureTime: firebase.firestore.FieldValue.increment(delta) });
-  }
-
-  function getElapsedMinutes() {
-    if (!state.startTime) return 0;
-    return Math.round((Date.now() - state.startTime) / 60000);
-  }
-
-  // Initialization
-  (async () => {
-    await requireAuth();
-
-    logoutBtn.addEventListener('click', () => auth.signOut());
-
-    taskForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const title = document.getElementById('task-title').value.trim();
-      const estimate = Number(document.getElementById('task-estimate').value);
-      if (!title || !estimate) return;
-      try {
-        await addTask(title, estimate);
-        taskForm.reset();
-      } catch (error) {
-        alert("Error adding task: " + error.message);
-      }
-    });
-
-    startBtn.addEventListener('click', () => {
-      if (!state.selectedTask) {
-        alert('Select a task first');
-        return;
-      }
-      if (state.startTime) {
-        alert('Timer already running');
-        return;
-      }
-      state.startTime = Date.now();
-      startTicker();
-      renderActive();
-    });
-
-    stopBtn.addEventListener('click', async () => {
-      if (!state.selectedTask || !state.startTime) {
-        alert('No running timer');
-        return;
-      }
-      stopTicker();
-      const elapsed = getElapsedMinutes();
-
-      try {
-        await saveResult(state.selectedTask.id, elapsed);
-        const delta = state.selectedTask.estimatedMinutes - elapsed;
-        alert(`Saved. Actual: ${elapsed}m. Δ = ${delta >= 0 ? '+' : ''}${delta}m`);
-      } catch (error) {
-        alert("Error saving result: " + error.message);
-      }
-
-      state.startTime = null;
-      renderActive();
-    });
-
-    resetBtn.addEventListener('click', () => {
-      stopTicker();
-      state.startTime = null;
-      renderActive();
-    });
-
-    goalForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const val = Number(goalInput.value);
-      if (!val || val < 1) {
-        alert("Please enter a valid goal greater than 0");
-        return;
-      }
-      try {
-        await db.collection('users').doc(state.user.uid).update({ goalMinutes: val });
-        goalInput.value = '';
-      } catch (error) {
-        alert("Error updating goal: " + error.message);
-      }
-    });
-
-    renderActive();
-  })();
-</script>
-
+    loadFriends();
+    loadFriendRequests();
+  </script>
 </body>
 </html>
