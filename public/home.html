@@ -185,46 +185,52 @@
   }
 
   function requireAuth() {
-    return new Promise((resolve) => {
-      auth.onAuthStateChanged(async (user) => {
-        if (!user) {
-          window.location.href = "./login.html";
-          return;
+  return new Promise((resolve) => {
+    // Use a single onAuthStateChanged listener to wait for auth state ready
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      unsubscribe(); // unsubscribe immediately after first call, so it doesn't run multiple times
+      
+      if (!user) {
+        // No user logged in, redirect to login page
+        window.location.href = "./login.html";
+        return;
+      }
+
+      state.user = user;
+
+      const userRef = db.collection('users').doc(user.uid);
+
+      userRef.onSnapshot((snap) => {
+        if (snap.exists) {
+          const { treasureTime = 0, goalMinutes = 120 } = snap.data();
+          setProgress(treasureTime, goalMinutes);
+        } else {
+          userRef.set({ treasureTime: 0, goalMinutes: 120 }, { merge: true });
         }
-        state.user = user;
-
-        const userRef = db.collection('users').doc(user.uid);
-
-        userRef.onSnapshot((snap) => {
-          if (snap.exists) {
-            const { treasureTime = 0, goalMinutes = 120 } = snap.data();
-            setProgress(treasureTime, goalMinutes);
-          } else {
-            userRef.set({ treasureTime: 0, goalMinutes: 120 }, { merge: true });
-          }
-        });
-
-        const tasksRef = userRef.collection('tasks').orderBy('createdAt', 'desc');
-        tasksRef.onSnapshot((snapshot) => {
-          state.tasks = [];
-          tasksEl.innerHTML = '';
-          snapshot.forEach(docu => {
-            const t = { id: docu.id, ...docu.data() };
-            state.tasks.push(t);
-            tasksEl.appendChild(taskRow(t));
-          });
-          if (state.selectedTask && !state.tasks.find(t => t.id === state.selectedTask.id)) {
-            state.selectedTask = null;
-            stopTicker();
-            renderActive();
-          }
-        });
-
-        taskForm.querySelector('button[type="submit"]').disabled = false;
-        resolve(user);
       });
+
+      const tasksRef = userRef.collection('tasks').orderBy('createdAt', 'desc');
+      tasksRef.onSnapshot((snapshot) => {
+        state.tasks = [];
+        tasksEl.innerHTML = '';
+        snapshot.forEach(docu => {
+          const t = { id: docu.id, ...docu.data() };
+          state.tasks.push(t);
+          tasksEl.appendChild(taskRow(t));
+        });
+        if (state.selectedTask && !state.tasks.find(t => t.id === state.selectedTask.id)) {
+          state.selectedTask = null;
+          stopTicker();
+          renderActive();
+        }
+      });
+
+      taskForm.querySelector('button[type="submit"]').disabled = false;
+      resolve(user);
     });
-  }
+  });
+}
+
 
   async function addTask(title, estimated) {
     const tasksRef = db.collection('users').doc(state.user.uid).collection('tasks');
