@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Home • Time Organizer</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="container">
+    <nav>
+      <div class="brand">⏳ Time Organizer</div>
+      <div style="display:flex; gap:8px">
+        <button id="logout" class="ghost">Logout</button>
+      </div>
+    </nav>
+
+    <div class="grid grid-2">
+      <section class="card">
+        <h3>Add a task</h3>
+        <form id="task-form" class="grid" style="gap:10px">
+          <div class="field">
+            <label>Task title</label>
+            <input id="task-title" required placeholder="Write blog post" />
+          </div>
+          <div class="field">
+            <label>Estimate (minutes)</label>
+            <input id="task-estimate" type="number" min="1" step="1" required placeholder="60" />
+          </div>
+          <button class="primary" type="submit">Add task</button>
+        </form>
+
+        <hr/>
+        <h3>Your tasks</h3>
+        <div id="tasks" class="list"></div>
+      </section>
+
+      <section class="card">
+        <h3>Timer</h3>
+        <div id="active-task" class="row" style="display:none"></div>
+        <div id="no-active-task" class="row">No active task</div>
+        <div style="display:flex; gap:8px; margin-top:10px">
+          <button id="start" class="primary">Start</button>
+          <button id="stop">Stop</button>
+          <button id="reset" class="ghost">Reset</button>
+        </div>
+        <p><small class="help">Pick a task, then Start. We store timestamps and compute duration accurately.</small></p>
+
+        <hr/>
+        <h3>Treasure Box</h3>
+        <div class="kpi">
+          <div class="pill">Net saved: <span id="treasure">0</span> min</div>
+          <div class="pill">Goal: <span id="goal">120</span> min</div>
+        </div>
+        <div class="progress" style="margin:10px 0"><div id="bar"></div></div>
+        <form id="goal-form" class="grid" style="gap:8px; max-width:320px">
+          <div class="field">
+            <label>Update goal (minutes)</label>
+            <input id="goal-input" type="number" min="1" step="1" />
+          </div>
+          <button class="ghost" type="submit">Save goal</button>
+        </form>
+      </section>
+    </div>
+
+    <div class="footer">Data syncs in real-time. Stay honest, collect time. ✨</div>
+  </div>
+
+  <script type="module">
+    import { auth, db } from "./firebase.js";
+    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import {
+      collection, addDoc, doc, setDoc, getDoc, onSnapshot, updateDoc,
+      serverTimestamp, query, orderBy, increment
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // UI refs
+    const logoutBtn = document.getElementById('logout');
+    const taskForm = document.getElementById('task-form');
+    const tasksEl = document.getElementById('tasks');
+    const activeTaskEl = document.getElementById('active-task');
+    const noActiveTaskEl = document.getElementById('no-active-task');
+    const startBtn = document.getElementById('start');
+    const stopBtn = document.getElementById('stop');
+    const resetBtn = document.getElementById('reset');
+    const treasureEl = document.getElementById('treasure');
+    const goalEl = document.getElementById('goal');
+    const goalForm = document.getElementById('goal-form');
+    const goalInput = document.getElementById('goal-input');
+    const bar = document.getElementById('bar');
+
+    let state = {
+      user: null,
+      selectedTask: null,
+      startTime: null, // ms epoch
+      tickInterval: null,
+    };
+
+    function formatMinutes(mm) {
+      const m = Math.floor(mm % 60);
+      const h = Math.floor(mm / 60);
+      return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    }
+
+    function renderActive() {
+      if (state.selectedTask) {
+        activeTaskEl.style.display = 'flex';
+        noActiveTaskEl.style.display = 'none';
+        const elapsedMin = state.startTime ? Math.round((Date.now() - state.startTime) / 60000) : 0;
+        activeTaskEl.innerHTML = `
+          <div style="flex:1">
+            <div style="font-weight:700">${state.selectedTask.title}</div>
+            <small class="help">Estimate: ${state.selectedTask.estimatedMinutes} min · Elapsed: ${elapsedMin} min</small>
+          </div>
+        `;
+      } else {
+        activeTaskEl.style.display = 'none';
+        noActiveTaskEl.style.display = 'flex';
+      }
+    }
+
+    function setProgress(net, goal) {
+      treasureEl.textContent = net;
+      goalEl.textContent = goal;
+      const pct = Math.max(0, Math.min(100, goal > 0 ? (net / goal) * 100 : 0));
+      bar.style.width = pct + '%';
+    }
+
+    function stopTicker() { if (state.tickInterval) { clearInterval(state.tickInterval); state.tickInterval = null; } }
+    function startTicker() { stopTicker(); state.tickInterval = setInterval(renderActive, 1000); }
+
+    function taskRow(t) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `
+        <div style="flex:1">
+          <div style="font-weight:700">${t.title}</div>
+          <small class="help">Est: ${t.estimatedMinutes}m ${t.actualMinutes ? `· Last: ${t.actualMinutes}m` : ''} ${typeof t.timeDelta === 'number' ? `· Δ ${t.timeDelta > 0 ? '+' : ''}${t.timeDelta}m` : ''}</small>
+        </div>
+        <div style="display:flex; gap:8px">
+          <button class="ghost select">Select</button>
+        </div>
+      `;
+      row.querySelector('.select').addEventListener('click', () => {
+        state.selectedTask = { id: t.id, title: t.title, estimatedMinutes: t.estimatedMinutes };
+        state.startTime = null;
+        renderActive();
+      });
+      return row;
+    }
+
+    async function requireAuth() {
+      return new Promise((resolve) => {
+        onAuthStateChanged(auth, async (user) => {
+          if (!user) { window.location.href = "./login.html"; return; }
+          state.user = user;
+
+          // Listen to profile
+          const userRef = doc(db, 'users', user.uid);
+          onSnapshot(userRef, (snap) => {
+            if (snap.exists()) {
+              const { treasureTime = 0, goalMinutes = 120 } = snap.data();
+              setProgress(treasureTime, goalMinutes);
+            }
+          });
+
+          // Listen to tasks
+          const tasksRef = collection(db, 'users', user.uid, 'tasks');
+          const q = query(tasksRef, orderBy('createdAt', 'desc'));
+          onSnapshot(q, (snapshot) => {
+            tasksEl.innerHTML = '';
+            snapshot.forEach(docu => {
+              const t = { id: docu.id, ...docu.data() };
+              tasksEl.appendChild(taskRow(t));
+            });
+          });
+
+          resolve(user);
+        });
+      });
+    }
+
+    async function addTask(title, estimated) {
+      const tasksRef = collection(db, 'users', state.user.uid, 'tasks');
+      await addDoc(tasksRef, {
+        title,
+        estimatedMinutes: Number(estimated),
+        actualMinutes: null,
+        timeDelta: null,
+        createdAt: serverTimestamp()
+      });
+    }
+
+    async function saveResult(taskId, actualMinutes) {
+      const taskRef = doc(db, 'users', state.user.uid, 'tasks', taskId);
+      const userRef = doc(db, 'users', state.user.uid);
+
+      const snap = await getDoc(taskRef);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const delta = Number(data.estimatedMinutes) - Number(actualMinutes); // + if under estimate
+
+      // Update task
+      await updateDoc(taskRef, {
+        actualMinutes: Number(actualMinutes),
+        timeDelta: delta,
+        lastRunAt: serverTimestamp()
+      });
+
+      // Atomically update treasureTime
+      await updateDoc(userRef, { treasureTime: increment(delta) });
+    }
+
+    function getElapsedMinutes() {
+      if (!state.startTime) return 0;
+      return Math.round((Date.now() - state.startTime) / 60000);
+    }
+
+    // Event bindings
+    document.getElementById('logout').addEventListener('click', () => signOut(auth));
+
+    taskForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('task-title').value.trim();
+      const estimate = Number(document.getElementById('task-estimate').value);
+      if (!title || !estimate) return;
+      await addTask(title, estimate);
+      taskForm.reset();
+    });
+
+    startBtn.addEventListener('click', () => {
+      if (!state.selectedTask) { alert('Select a task first'); return; }
+      state.startTime = Date.now();
+      startTicker();
+      renderActive();
+    });
+
+    stopBtn.addEventListener('click', async () => {
+      if (!state.selectedTask || !state.startTime) { alert('No running timer'); return; }
+      stopTicker();
+      const elapsed = getElapsedMinutes();
+      await saveResult(state.selectedTask.id, elapsed);
+      const delta = state.selectedTask.estimatedMinutes - elapsed;
+      state.startTime = null;
+      renderActive();
+      alert(`Saved. Actual: ${elapsed}m. Δ = ${delta > 0 ? '+' : ''}${delta}m`);
+    });
+
+    resetBtn.addEventListener('click', () => {
+      stopTicker();
+      state.startTime = null;
+      renderActive();
+    });
+
+    goalForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const val = Number(goalInput.value);
+      if (!val || val < 1) return;
+      await updateDoc(doc(db, 'users', state.user.uid), { goalMinutes: val });
+      goalInput.value = '';
+    });
+
+    // Boot
+    await requireAuth();
+    renderActive();
+  </script>
+</body>
+</html>

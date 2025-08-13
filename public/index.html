@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Time Organizer</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="container">
+    <nav>
+      <div class="brand">⏳ Time Organizer</div>
+      <div>
+        <a href="./login.html"><button class="ghost">Login</button></a>
+        <a href="./signup.html"><button class="primary">Sign Up</button></a>
+      </div>
+    </nav>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Make every minute count</h2>
+        <p>Estimate tasks, run a timer, and bank time saved into your Treasure Box. Turn focus into rewards.</p>
+        <div style="display:flex; gap:12px; margin-top:12px">
+          <a href="./signup.html"><button class="primary">Get Started</button></a>
+          <a href="./login.html"><button>Already have an account?</button></a>
+        </div>
+      </section>
+
+      <section class="card grid grid-2">
+        <div>
+          <h3>How it works</h3>
+          <ol>
+            <li>Create an account.</li>
+            <li>Add tasks with time estimates.</li>
+            <li>Start the timer. Stop when done.</li>
+            <li>We compare actual vs. estimate and update your Treasure Box.</li>
+          </ol>
+        </div>
+        <div>
+          <h3>Why it helps</h3>
+          <ul>
+            <li>Stay realistic with estimates</li>
+            <li>Visualize gains/losses</li>
+            <li>Set goals for banked time</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="footer">© <span id="year"></span> Time Organizer</div>
+  </div>
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
