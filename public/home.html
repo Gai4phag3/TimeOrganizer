@@ -1,3 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Home • Time Organizer</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="container">
+    <nav>
+      <div class="brand">⏳ Time Organizer</div>
+      <div style="display:flex; gap:8px">
+        <button id="logout" class="ghost">Logout</button>
+      </div>
+    </nav>
+
+    <div class="grid grid-2">
+      <section class="card">
+        <h3>Add a task</h3>
+        <form id="task-form" class="grid" style="gap:10px">
+          <div class="field">
+            <label>Task title</label>
+            <input id="task-title" required placeholder="Write blog post" />
+          </div>
+          <div class="field">
+            <label>Estimate (minutes)</label>
+            <input id="task-estimate" type="number" min="1" step="1" required placeholder="60" />
+          </div>
+          <button class="primary" type="submit">Add task</button>
+        </form>
+
+        <hr/>
+        <h3>Your tasks</h3>
+        <div id="tasks" class="list"></div>
+      </section>
+
+      <section class="card">
+        <h3>Timer</h3>
+        <div id="active-task" class="row" style="display:none"></div>
+        <div id="no-active-task" class="row">No active task</div>
+        <div style="display:flex; gap:8px; margin-top:10px">
+          <button id="start" class="primary">Start</button>
+          <button id="stop">Stop</button>
+          <button id="reset" class="ghost">Reset</button>
+        </div>
+        <p><small class="help">Pick a task, then Start. We store timestamps and compute duration accurately.</small></p>
+
+        <hr/>
+        <h3>Treasure Box</h3>
+        <div class="kpi">
+          <div class="pill">Net saved: <span id="treasure">0</span> min</div>
+          <div class="pill">Goal: <span id="goal">120</span> min</div>
+        </div>
+        <div class="progress" style="margin:10px 0"><div id="bar"></div></div>
+        <form id="goal-form" class="grid" style="gap:8px; max-width:320px">
+          <div class="field">
+            <label>Update goal (minutes)</label>
+            <input id="goal-input" type="number" min="1" step="1" />
+          </div>
+          <button class="ghost" type="submit">Save goal</button>
+        </form>
+      </section>
+    </div>
+
+    <div class="footer">Data syncs in real-time. Stay honest, collect time. ✨</div>
+  </div>
+
 <script type="module">
   import { auth, db } from "./firebase.js";
   import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -262,3 +330,5 @@
   renderActive();
 
 </script>
+</body>
+</html>
