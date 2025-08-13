@@ -66,269 +66,280 @@
     <div class="footer">Data syncs in real-time. Stay honest, collect time. ✨</div>
   </div>
 
-<script type="module">
-  import { auth, db } from "./firebase.js";
-  import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-  import {
-    collection, addDoc, doc, setDoc, getDoc, onSnapshot, updateDoc,
-    serverTimestamp, query, orderBy, increment
-  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  <script type="module">
+    import { auth, db } from "./firebase.js";
+    import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import {
+      collection, addDoc, doc, setDoc, getDoc, onSnapshot, updateDoc,
+      serverTimestamp, query, orderBy, increment
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-  // UI refs
-  const logoutBtn = document.getElementById('logout');
-  const taskForm = document.getElementById('task-form');
-  const tasksEl = document.getElementById('tasks');
-  const activeTaskEl = document.getElementById('active-task');
-  const noActiveTaskEl = document.getElementById('no-active-task');
-  const startBtn = document.getElementById('start');
-  const stopBtn = document.getElementById('stop');
-  const resetBtn = document.getElementById('reset');
-  const treasureEl = document.getElementById('treasure');
-  const goalEl = document.getElementById('goal');
-  const goalForm = document.getElementById('goal-form');
-  const goalInput = document.getElementById('goal-input');
-  const bar = document.getElementById('bar');
+    // UI refs
+    const logoutBtn = document.getElementById('logout');
+    const taskForm = document.getElementById('task-form');
+    const tasksEl = document.getElementById('tasks');
+    const activeTaskEl = document.getElementById('active-task');
+    const noActiveTaskEl = document.getElementById('no-active-task');
+    const startBtn = document.getElementById('start');
+    const stopBtn = document.getElementById('stop');
+    const resetBtn = document.getElementById('reset');
+    const treasureEl = document.getElementById('treasure');
+    const goalEl = document.getElementById('goal');
+    const goalForm = document.getElementById('goal-form');
+    const goalInput = document.getElementById('goal-input');
+    const bar = document.getElementById('bar');
 
-  // Disable task form until auth ready
-  taskForm.querySelector('button[type="submit"]').disabled = true;
+    taskForm.querySelector('button[type="submit"]').disabled = true;
 
-  let state = {
-    user: null,
-    tasks: [],
-    selectedTask: null,
-    startTime: null, // timestamp in ms
-    tickInterval: null,
-    treasureTime: 0,
-    goalMinutes: 120,
-  };
+    let state = {
+      user: null,
+      tasks: [],
+      selectedTask: null,
+      startTime: null, // timestamp in ms
+      tickInterval: null,
+      treasureTime: 0,
+      goalMinutes: 120,
+    };
 
-  function formatMinutes(mm) {
-    const m = Math.floor(mm % 60);
-    const h = Math.floor(mm / 60);
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
-  }
+    // Format minutes nicely
+    function formatMinutes(mm) {
+      const m = Math.floor(mm % 60);
+      const h = Math.floor(mm / 60);
+      return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    }
 
-  function renderActive() {
-    if (state.selectedTask) {
-      activeTaskEl.style.display = 'flex';
-      noActiveTaskEl.style.display = 'none';
+    // Render active task display with elapsed time
+    function renderActive() {
+      if (state.selectedTask) {
+        activeTaskEl.style.display = 'flex';
+        noActiveTaskEl.style.display = 'none';
 
-      const elapsedMin = state.startTime ? Math.round((Date.now() - state.startTime) / 60000) : 0;
+        const elapsedMin = state.startTime ? Math.round((Date.now() - state.startTime) / 60000) : 0;
 
-      activeTaskEl.innerHTML = `
+        activeTaskEl.innerHTML = `
+          <div style="flex:1">
+            <div style="font-weight:700">${state.selectedTask.title}</div>
+            <small class="help">Estimate: ${state.selectedTask.estimatedMinutes} min · Elapsed: ${elapsedMin} min</small>
+          </div>
+        `;
+      } else {
+        activeTaskEl.style.display = 'none';
+        noActiveTaskEl.style.display = 'flex';
+      }
+    }
+
+    // Update treasure box progress UI
+    function setProgress(net, goal) {
+      state.treasureTime = net;
+      state.goalMinutes = goal;
+
+      treasureEl.textContent = net;
+      goalEl.textContent = goal;
+
+      const pct = Math.max(0, Math.min(100, goal > 0 ? (net / goal) * 100 : 0));
+      bar.style.width = pct + '%';
+    }
+
+    // Stop interval timer
+    function stopTicker() {
+      if (state.tickInterval) {
+        clearInterval(state.tickInterval);
+        state.tickInterval = null;
+      }
+    }
+
+    // Start interval timer to update elapsed time every second
+    function startTicker() {
+      stopTicker();
+      state.tickInterval = setInterval(renderActive, 1000);
+    }
+
+    // Create a single task row element with select button
+    function taskRow(t) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `
         <div style="flex:1">
-          <div style="font-weight:700">${state.selectedTask.title}</div>
-          <small class="help">Estimate: ${state.selectedTask.estimatedMinutes} min · Elapsed: ${elapsedMin} min</small>
+          <div style="font-weight:700">${t.title}</div>
+          <small class="help">Est: ${t.estimatedMinutes}m${t.actualMinutes !== null ? ` · Last: ${t.actualMinutes}m` : ''}${typeof t.timeDelta === 'number' ? ` · Δ ${t.timeDelta > 0 ? '+' : ''}${t.timeDelta}m` : ''}</small>
+        </div>
+        <div style="display:flex; gap:8px">
+          <button class="ghost select">Select</button>
         </div>
       `;
-    } else {
-      activeTaskEl.style.display = 'none';
-      noActiveTaskEl.style.display = 'flex';
+      row.querySelector('.select').addEventListener('click', () => {
+        // Select task, reset timer state
+        state.selectedTask = { id: t.id, title: t.title, estimatedMinutes: t.estimatedMinutes };
+        state.startTime = null;
+        stopTicker();
+        renderActive();
+      });
+      return row;
     }
-  }
 
-  function setProgress(net, goal) {
-    state.treasureTime = net;
-    state.goalMinutes = goal;
+    // Wait for user auth, then subscribe to data
+    async function requireAuth() {
+      return new Promise((resolve) => {
+        onAuthStateChanged(auth, async (user) => {
+          if (!user) {
+            window.location.href = "./login.html";
+            return;
+          }
+          state.user = user;
 
-    treasureEl.textContent = net;
-    goalEl.textContent = goal;
+          // Listen for treasure box and goal changes
+          const userRef = doc(db, 'users', user.uid);
+          onSnapshot(userRef, (snap) => {
+            if (snap.exists()) {
+              const { treasureTime = 0, goalMinutes = 120 } = snap.data();
+              setProgress(treasureTime, goalMinutes);
+            } else {
+              setDoc(userRef, { treasureTime: 0, goalMinutes: 120 }, { merge: true });
+            }
+          });
 
-    const pct = Math.max(0, Math.min(100, goal > 0 ? (net / goal) * 100 : 0));
-    bar.style.width = pct + '%';
-  }
+          // Listen for tasks changes
+          const tasksRef = collection(db, 'users', user.uid, 'tasks');
+          const q = query(tasksRef, orderBy('createdAt', 'desc'));
+          onSnapshot(q, (snapshot) => {
+            state.tasks = [];
+            tasksEl.innerHTML = '';
+            snapshot.forEach(docu => {
+              const t = { id: docu.id, ...docu.data() };
+              state.tasks.push(t);
+              tasksEl.appendChild(taskRow(t));
+            });
+            // If selected task was deleted, reset selection and timer
+            if (state.selectedTask && !state.tasks.find(t => t.id === state.selectedTask.id)) {
+              state.selectedTask = null;
+              stopTicker();
+              renderActive();
+            }
+          });
 
-  function stopTicker() {
-    if (state.tickInterval) {
-      clearInterval(state.tickInterval);
-      state.tickInterval = null;
+          // Enable form submit now
+          taskForm.querySelector('button[type="submit"]').disabled = false;
+          resolve(user);
+        });
+      });
     }
-  }
 
-  function startTicker() {
-    stopTicker();
-    state.tickInterval = setInterval(renderActive, 1000);
-  }
+    // Add new task to Firestore
+    async function addTask(title, estimated) {
+      const tasksRef = collection(db, 'users', state.user.uid, 'tasks');
+      await addDoc(tasksRef, {
+        title,
+        estimatedMinutes: Number(estimated),
+        actualMinutes: null,
+        timeDelta: null,
+        createdAt: serverTimestamp()
+      });
+    }
 
-  function taskRow(t) {
-    const row = document.createElement('div');
-    row.className = 'row';
-    row.innerHTML = `
-      <div style="flex:1">
-        <div style="font-weight:700">${t.title}</div>
-        <small class="help">Est: ${t.estimatedMinutes}m${t.actualMinutes !== null ? ` · Last: ${t.actualMinutes}m` : ''}${typeof t.timeDelta === 'number' ? ` · Δ ${t.timeDelta > 0 ? '+' : ''}${t.timeDelta}m` : ''}</small>
-      </div>
-      <div style="display:flex; gap:8px">
-        <button class="ghost select">Select</button>
-      </div>
-    `;
-    row.querySelector('.select').addEventListener('click', () => {
-      console.log("Task selected:", t);
-      state.selectedTask = { id: t.id, title: t.title, estimatedMinutes: t.estimatedMinutes };
-      state.startTime = null;
-      stopTicker();
+    // Save timer result and update treasure box
+    async function saveResult(taskId, actualMinutes) {
+      const taskRef = doc(db, 'users', state.user.uid, 'tasks', taskId);
+      const userRef = doc(db, 'users', state.user.uid);
+
+      const snap = await getDoc(taskRef);
+      if (!snap.exists()) return;
+
+      const data = snap.data();
+      // Calculate delta as estimate - actual (positive means saved time)
+      const delta = Number(data.estimatedMinutes) - Number(actualMinutes);
+
+      await updateDoc(taskRef, {
+        actualMinutes: Number(actualMinutes),
+        timeDelta: delta,
+        lastRunAt: serverTimestamp()
+      });
+
+      await updateDoc(userRef, { treasureTime: increment(delta) });
+    }
+
+    // Get elapsed minutes from timer start
+    function getElapsedMinutes() {
+      if (!state.startTime) return 0;
+      return Math.round((Date.now() - state.startTime) / 60000);
+    }
+
+    // Initialize app after auth ready
+    await requireAuth();
+
+    logoutBtn.addEventListener('click', () => signOut(auth));
+
+    taskForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const title = document.getElementById('task-title').value.trim();
+      const estimate = Number(document.getElementById('task-estimate').value);
+      if (!title || !estimate) return;
+      try {
+        await addTask(title, estimate);
+        taskForm.reset();
+      } catch (error) {
+        alert("Error adding task: " + error.message);
+      }
+    });
+
+    startBtn.addEventListener('click', () => {
+      if (!state.selectedTask) {
+        alert('Select a task first');
+        return;
+      }
+      if (state.startTime) {
+        alert('Timer already running');
+        return;
+      }
+      state.startTime = Date.now();
+      startTicker();
       renderActive();
     });
-    return row;
-  }
 
-  async function requireAuth() {
-    return new Promise((resolve) => {
-      onAuthStateChanged(auth, async (user) => {
-        if (!user) {
-          window.location.href = "./login.html";
-          return;
-        }
-        console.log("User authenticated:", user.uid);
-        state.user = user;
+    stopBtn.addEventListener('click', async () => {
+      if (!state.selectedTask || !state.startTime) {
+        alert('No running timer');
+        return;
+      }
+      stopTicker();
+      const elapsed = getElapsedMinutes();
 
-        const userRef = doc(db, 'users', user.uid);
-        onSnapshot(userRef, (snap) => {
-          if (snap.exists()) {
-            const { treasureTime = 0, goalMinutes = 120 } = snap.data();
-            setProgress(treasureTime, goalMinutes);
-          } else {
-            setDoc(userRef, { treasureTime: 0, goalMinutes: 120 }, { merge: true });
-          }
-        });
+      try {
+        await saveResult(state.selectedTask.id, elapsed);
+        // Show delta with correct sign: positive means saved time (estimate - actual > 0)
+        const delta = state.selectedTask.estimatedMinutes - elapsed;
+        alert(`Saved. Actual: ${elapsed}m. Δ = ${delta >= 0 ? '+' : ''}${delta}m`);
+      } catch (error) {
+        alert("Error saving result: " + error.message);
+      }
 
-        const tasksRef = collection(db, 'users', user.uid, 'tasks');
-        const q = query(tasksRef, orderBy('createdAt', 'desc'));
-        onSnapshot(q, (snapshot) => {
-          console.log("Tasks snapshot received:", snapshot.size);
-          state.tasks = [];
-          tasksEl.innerHTML = '';
-          snapshot.forEach(docu => {
-            const t = { id: docu.id, ...docu.data() };
-            state.tasks.push(t);
-            tasksEl.appendChild(taskRow(t));
-          });
-          if (state.selectedTask && !state.tasks.find(t => t.id === state.selectedTask.id)) {
-            state.selectedTask = null;
-            stopTicker();
-            renderActive();
-          }
-        });
-
-        // Enable task form submit button now that user is ready
-        taskForm.querySelector('button[type="submit"]').disabled = false;
-
-        resolve(user);
-      });
-    });
-  }
-
-  async function addTask(title, estimated) {
-    console.log("Adding task:", title, estimated);
-    const tasksRef = collection(db, 'users', state.user.uid, 'tasks');
-    await addDoc(tasksRef, {
-      title,
-      estimatedMinutes: Number(estimated),
-      actualMinutes: null,
-      timeDelta: null,
-      createdAt: serverTimestamp()
-    });
-  }
-
-  async function saveResult(taskId, actualMinutes) {
-    const taskRef = doc(db, 'users', state.user.uid, 'tasks', taskId);
-    const userRef = doc(db, 'users', state.user.uid);
-
-    const snap = await getDoc(taskRef);
-    if (!snap.exists()) return;
-
-    const data = snap.data();
-    const delta = Number(data.estimatedMinutes) - Number(actualMinutes);
-
-    await updateDoc(taskRef, {
-      actualMinutes: Number(actualMinutes),
-      timeDelta: delta,
-      lastRunAt: serverTimestamp()
+      state.startTime = null;
+      renderActive();
     });
 
-    await updateDoc(userRef, { treasureTime: increment(delta) });
-  }
+    resetBtn.addEventListener('click', () => {
+      stopTicker();
+      state.startTime = null;
+      renderActive();
+    });
 
-  function getElapsedMinutes() {
-    if (!state.startTime) return 0;
-    return Math.round((Date.now() - state.startTime) / 60000);
-  }
+    goalForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const val = Number(goalInput.value);
+      if (!val || val < 1) {
+        alert("Please enter a valid goal greater than 0");
+        return;
+      }
+      try {
+        await updateDoc(doc(db, 'users', state.user.uid), { goalMinutes: val });
+        goalInput.value = '';
+      } catch (error) {
+        alert("Error updating goal: " + error.message);
+      }
+    });
 
-  // Bind UI events AFTER authentication
-
-  await requireAuth();
-
-  logoutBtn.addEventListener('click', () => signOut(auth));
-
-  taskForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const title = document.getElementById('task-title').value.trim();
-    const estimate = Number(document.getElementById('task-estimate').value);
-    if (!title || !estimate) return;
-    try {
-      await addTask(title, estimate);
-      taskForm.reset();
-    } catch (error) {
-      alert("Error adding task: " + error.message);
-    }
-  });
-
-  startBtn.addEventListener('click', () => {
-    if (!state.selectedTask) {
-      alert('Select a task first');
-      return;
-    }
-    if (state.startTime) {
-      alert('Timer already running');
-      return;
-    }
-    state.startTime = Date.now();
-    startTicker();
     renderActive();
-  });
 
-  stopBtn.addEventListener('click', async () => {
-    if (!state.selectedTask || !state.startTime) {
-      alert('No running timer');
-      return;
-    }
-    stopTicker();
-    const elapsed = getElapsedMinutes();
+  </script>
 
-    try {
-      await saveResult(state.selectedTask.id, elapsed);
-      alert(`Saved. Actual: ${elapsed}m. Δ = ${elapsed <= state.selectedTask.estimatedMinutes ? '+' : ''}${state.selectedTask.estimatedMinutes - elapsed}m`);
-    } catch (error) {
-      alert("Error saving result: " + error.message);
-    }
-
-    state.startTime = null;
-    renderActive();
-  });
-
-  resetBtn.addEventListener('click', () => {
-    stopTicker();
-    state.startTime = null;
-    renderActive();
-  });
-
-  goalForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const val = Number(goalInput.value);
-    if (!val || val < 1) {
-      alert("Please enter a valid goal greater than 0");
-      return;
-    }
-    try {
-      await updateDoc(doc(db, 'users', state.user.uid), { goalMinutes: val });
-      goalInput.value = '';
-    } catch (error) {
-      alert("Error updating goal: " + error.message);
-    }
-  });
-
-  renderActive();
-
-</script>
 </body>
 </html>
