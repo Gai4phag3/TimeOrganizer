@@ -76,7 +76,7 @@
     apiKey: "AIzaSyABwjZH3BgWW4eFXLx5PE-GVtumTeBMlsQ",
     authDomain: "timeorganization-d6343.firebaseapp.com",
     projectId: "timeorganization-d6343",
-    storageBucket: "timeorganization-d6343.firebasestorage.app",
+    storageBucket: "timeorganization-d6343.appspot.com",
     messagingSenderId: "706925146380",
     appId: "1:706925146380:web:aee86fcfcdd22c020bd929",
     measurementId: "G-296T95D1ZP"
@@ -186,13 +186,14 @@
 
   function requireAuth() {
   return new Promise((resolve) => {
-    // Use a single onAuthStateChanged listener to wait for auth state ready
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      unsubscribe(); // unsubscribe immediately after first call, so it doesn't run multiple times
-      
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      unsubscribe(); // only run once
+
       if (!user) {
-        // No user logged in, redirect to login page
-        window.location.href = "./login.html";
+        // delay redirect slightly to avoid loop on refresh
+        setTimeout(() => {
+          window.location.href = "./login.html";
+        }, 0);
         return;
       }
 
@@ -230,6 +231,7 @@
     });
   });
 }
+
 
 
   async function addTask(title, estimated) {
