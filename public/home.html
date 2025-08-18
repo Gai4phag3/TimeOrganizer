@@ -8,7 +8,7 @@
     body {
       margin: 0;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #f4f6f9;
+      background: #f4f4f4;
     }
 
     nav {
@@ -18,7 +18,6 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
     }
 
     nav h1 {
@@ -46,26 +45,24 @@
       padding: 20px;
     }
 
-    .treasure-link {
+    .treasure-button {
       display: inline-block;
       background: #f1c40f;
-      color: #333;
+      color: #2c3e50;
       padding: 12px 18px;
-      border-radius: 8px;
+      font-size: 16px;
       font-weight: bold;
-      text-decoration: none;
+      border-radius: 8px;
+      cursor: pointer;
       margin-bottom: 20px;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      text-decoration: none;
     }
 
-    .treasure-link:hover {
-      background: #d4ac0d;
-      color: white;
+    .treasure-button:hover {
+      background: #f39c12;
     }
 
-    .task-form,
-    .task-list,
-    .history-list {
+    .task-form {
       background: white;
       padding: 15px;
       border-radius: 8px;
@@ -94,8 +91,16 @@
       background: #27ae60;
     }
 
-    .task-item,
-    .history-item {
+    .task-list,
+    .history-list {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
+
+    .task-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -103,8 +108,7 @@
       padding: 8px 0;
     }
 
-    .task-item:last-child,
-    .history-item:last-child {
+    .task-item:last-child {
       border-bottom: none;
     }
 
@@ -127,21 +131,31 @@
     }
 
     /* Floating ongoing task box */
-    .ongoing-box {
+    #active-task-box {
       position: fixed;
       bottom: 20px;
       right: 20px;
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
-      padding: 15px;
-      width: 250px;
+      background: #ffffff;
+      border: 2px solid #3498db;
+      border-radius: 12px;
+      padding: 20px;
+      width: 280px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      font-size: 16px;
+      z-index: 1000;
     }
 
-    .ongoing-box h3 {
-      margin: 0 0 10px;
-      font-size: 16px;
-      color: #333;
+    #active-task-box h3 {
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: #2c3e50;
+      font-weight: bold;
+    }
+
+    #active-task-box .timer {
+      font-size: 22px;
+      font-weight: bold;
+      color: #27ae60;
     }
   </style>
 </head>
@@ -154,7 +168,9 @@
   </nav>
 
   <div class="container">
-    <a href="treasure.html" class="treasure-link">⏳ Go to Treasure Box</a>
+    <a href="treasure.html" class="treasure-button">
+      ⏳ Treasure Box
+    </a>
 
     <div class="task-form">
       <input type="text" id="task-name" placeholder="Task name">
@@ -163,49 +179,53 @@
     </div>
 
     <div class="task-list">
-      <h2>Your Tasks</h2>
+      <h2>Ongoing / Pending Tasks</h2>
       <div id="tasks"></div>
     </div>
 
     <div class="history-list">
-      <h2>Task History</h2>
+      <h2>Completed Tasks</h2>
       <div id="history"></div>
     </div>
   </div>
 
-  <!-- Ongoing Task Floating Box -->
-  <div class="ongoing-box" id="ongoing-box" style="display:none;">
-    <h3>⏱️ Ongoing Task</h3>
-    <div id="ongoing-task"></div>
-  </div>
+  <div id="active-task-box"></div>
 
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
   <script>
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyABwjZH3BgWW4eFXLx5PE-GVtumTeBMlsQ",
       authDomain: "timeorganization-d6343.firebaseapp.com",
       projectId: "timeorganization-d6343",
       storageBucket: "timeorganization-d6343.appspot.com",
       messagingSenderId: "706925146380",
-      appId: "1:706925146380:web:aee86fcfcdd22c020bd929"
+      appId: "1:706925146380:web:aee86fcfcdd22c020bd929",
+      measurementId: "G-296T95D1ZP"
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    const username = localStorage.getItem("username");
-    const name = localStorage.getItem("name");
-    if (!username) window.location.replace("login.html");
-    document.getElementById("display-name").textContent = name || username;
+    const username = localStorage.getItem("username") || "guest";
+    const name = localStorage.getItem("name") || "Guest";
+    document.getElementById("display-name").textContent = name;
 
     let timers = {}; // { taskId: startTime }
     let treasureTotal = 0;
 
+    function updateTreasureDisplay() {
+      // optional, if treasure total is displayed on this page
+    }
+
     function addTask() {
       const taskName = document.getElementById("task-name").value.trim();
       const estimated = parseInt(document.getElementById("estimated-time").value);
-      if (!taskName || !estimated) { alert("Enter task name and estimated time."); return; }
+      if (!taskName || !estimated) {
+        alert("Enter task name and estimated time.");
+        return;
+      }
       db.collection("tasks").add({
         user: username,
         taskName,
@@ -218,77 +238,97 @@
     }
 
     function loadTasks() {
-      db.collection("tasks").where("user", "==", username).onSnapshot(snapshot => {
-        const tasksDiv = document.getElementById("tasks");
-        const historyDiv = document.getElementById("history");
-        tasksDiv.innerHTML = "";
-        historyDiv.innerHTML = "";
+      db.collection("tasks")
+        .where("user", "==", username)
+        .onSnapshot(snapshot => {
+          const tasksDiv = document.getElementById("tasks");
+          const historyDiv = document.getElementById("history");
+          const activeBox = document.getElementById("active-task-box");
 
-        snapshot.forEach(doc => {
-          const task = doc.data();
-          const id = doc.id;
-          if (!task.completed) {
-            tasksDiv.innerHTML += `
-              <div class="task-item">
-                <span>${task.taskName} - est: ${task.estimated} min</span>
-                ${timers[id]
-                ? `<button class="btn stop" onclick="stopTask('${id}', ${task.estimated})">Stop</button>`
-                : `<button class="btn start" onclick="startTask('${id}')">Start</button>`}
-              </div>`;
-          } else {
-            historyDiv.innerHTML += `
-              <div class="history-item">
-                <span>${task.taskName} - ${task.actual} min (est: ${task.estimated})</span>
-              </div>`;
-          }
+          tasksDiv.innerHTML = "";
+          historyDiv.innerHTML = "";
+          activeBox.innerHTML = "";
+
+          snapshot.forEach(doc => {
+            const task = doc.data();
+            const id = doc.id;
+
+            if (!task.completed) {
+              let controls = timers[id]
+                ? `<button class="btn stop" onclick="stopTask('${id}', ${task.estimated}, '${task.taskName}')">Stop</button>`
+                : `<button class="btn start" onclick="startTask('${id}', '${task.taskName}')">Start</button>`;
+
+              tasksDiv.innerHTML += `
+                <div class="task-item">
+                  <span>${task.taskName} - est: ${task.estimated} min</span>
+                  ${controls}
+                </div>
+              `;
+
+              // If task is running → show in floating box
+              if (timers[id]) {
+                activeBox.innerHTML = `
+                  <h3>⏳ Ongoing Task</h3>
+                  <div><strong>${task.taskName}</strong></div>
+                  <div class="timer" id="timer-${id}">0 min</div>
+                `;
+                startLiveTimer(id);
+              }
+            } else {
+              const diff = task.estimated - task.actual;
+              historyDiv.innerHTML += `
+                <div class="task-item">
+                  <span>${task.taskName} - ${task.actual} min (${diff >= 0 ? "+" : ""}${diff})</span>
+                </div>
+              `;
+            }
+          });
         });
-      });
     }
 
-    function startTask(id) {
+    function startTask(id, name) {
       timers[id] = Date.now();
-      updateOngoingBox(id);
       loadTasks();
     }
 
-    function stopTask(id, estimated) {
+    function stopTask(id, estimated, name) {
       const startTime = timers[id];
       if (!startTime) return;
       const actualMinutes = Math.round((Date.now() - startTime) / 60000);
       delete timers[id];
-      document.getElementById("ongoing-box").style.display = "none";
-
       const diff = estimated - actualMinutes;
       treasureTotal += diff;
-
-      db.collection("tasks").doc(id).update({ actual: actualMinutes, completed: true });
-      db.collection("users").doc(username).set({ treasure: treasureTotal }, { merge: true });
+      updateTreasureDisplay();
+      db.collection("tasks").doc(id).update({
+        actual: actualMinutes,
+        completed: true
+      });
+      db.collection("users").doc(username).set({
+        treasure: treasureTotal
+      }, { merge: true });
     }
 
-    function updateOngoingBox(id) {
-      const box = document.getElementById("ongoing-box");
-      const ongoingDiv = document.getElementById("ongoing-task");
-      box.style.display = "block";
-      const startTime = timers[id];
+    function startLiveTimer(id) {
+      const timerDiv = document.getElementById(`timer-${id}`);
+      if (!timerDiv) return;
 
-      function updateTimer() {
-        if (!timers[id]) return;
-        const elapsed = Math.floor((Date.now() - startTime) / 1000);
-        const minutes = Math.floor(elapsed / 60);
-        const seconds = elapsed % 60;
-        ongoingDiv.innerHTML = `<b>Task:</b> ${id}<br><b>Time:</b> ${minutes}m ${seconds}s`;
-      }
-      setInterval(updateTimer, 1000);
+      setInterval(() => {
+        const elapsed = Math.floor((Date.now() - timers[id]) / 60000);
+        timerDiv.textContent = `${elapsed} min`;
+      }, 1000);
     }
 
     function logout() {
       localStorage.clear();
-      window.location.replace("login.html");
+      window.location.reload();
     }
 
-    // Load treasure
+    // Load treasure from DB if exists
     db.collection("users").doc(username).get().then(doc => {
-      if (doc.exists && doc.data().treasure) treasureTotal = doc.data().treasure;
+      if (doc.exists && doc.data().treasure) {
+        treasureTotal = doc.data().treasure;
+        updateTreasureDisplay();
+      }
     });
 
     loadTasks();
