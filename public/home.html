@@ -195,6 +195,7 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
   <script>
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyABwjZH3BgWW4eFXLx5PE-GVtumTeBMlsQ",
       authDomain: "timeorganization-d6343.firebaseapp.com",
@@ -212,11 +213,11 @@
     document.getElementById("display-name").textContent = name;
 
     let timers = {}; // { taskId: startTime }
-    let intervals = {}; // track setInterval IDs to avoid duplicates
+    let liveTimerInterval = null;
     let treasureTotal = 0;
 
     function updateTreasureDisplay() {
-      // optional if treasure total is displayed
+      // optional: update treasure total UI if needed
     }
 
     function addTask() {
@@ -249,6 +250,8 @@
           historyDiv.innerHTML = "";
           activeBox.innerHTML = "";
 
+          let activeTaskId = null;
+
           snapshot.forEach(doc => {
             const task = doc.data();
             const id = doc.id;
@@ -265,14 +268,7 @@
                 </div>
               `;
 
-              if (timers[id]) {
-                activeBox.innerHTML = `
-                  <h3>⏳ Ongoing Task</h3>
-                  <div><strong>${task.taskName}</strong></div>
-                  <div class="timer" id="timer-${id}">0 min</div>
-                `;
-                startLiveTimer(id);
-              }
+              if (timers[id]) activeTaskId = id;
             } else {
               const diff = task.estimated - task.actual;
               historyDiv.innerHTML += `
@@ -282,6 +278,17 @@
               `;
             }
           });
+
+          // Update active task box
+          if (activeTaskId) {
+            const taskName = snapshot.docs.find(d => d.id === activeTaskId).data().taskName;
+            activeBox.innerHTML = `
+              <h3>⏳ Ongoing Task</h3>
+              <div><strong>${taskName}</strong></div>
+              <div class="timer" id="timer-${activeTaskId}">0m 0s</div>
+            `;
+            startLiveTimer(activeTaskId);
+          }
         });
     }
 
@@ -295,12 +302,6 @@
       if (!startTime) return;
       const actualMinutes = Math.round((Date.now() - startTime) / 60000);
       delete timers[id];
-
-      if (intervals[id]) {
-        clearInterval(intervals[id]);
-        delete intervals[id];
-      }
-
       const diff = estimated - actualMinutes;
       treasureTotal += diff;
       updateTreasureDisplay();
@@ -314,14 +315,21 @@
     }
 
     function startLiveTimer(id) {
-      if (intervals[id]) return; // prevent multiple intervals
-
       const timerDiv = document.getElementById(`timer-${id}`);
       if (!timerDiv) return;
 
-      intervals[id] = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - timers[id]) / 60000);
-        timerDiv.textContent = `${elapsed} min`;
+      if (liveTimerInterval) clearInterval(liveTimerInterval);
+
+      liveTimerInterval = setInterval(() => {
+        if (!timers[id]) {
+          clearInterval(liveTimerInterval);
+          timerDiv.textContent = "0m 0s";
+          return;
+        }
+        const elapsedMs = Date.now() - timers[id];
+        const minutes = Math.floor(elapsedMs / 60000);
+        const seconds = Math.floor((elapsedMs % 60000) / 1000);
+        timerDiv.textContent = `${minutes}m ${seconds}s`;
       }, 1000);
     }
 
@@ -330,6 +338,7 @@
       window.location.reload();
     }
 
+    // Load treasure from DB if exists
     db.collection("users").doc(username).get().then(doc => {
       if (doc.exists && doc.data().treasure) {
         treasureTotal = doc.data().treasure;
