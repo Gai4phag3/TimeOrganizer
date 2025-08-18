@@ -195,7 +195,6 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
   <script>
-    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyABwjZH3BgWW4eFXLx5PE-GVtumTeBMlsQ",
       authDomain: "timeorganization-d6343.firebaseapp.com",
@@ -213,10 +212,11 @@
     document.getElementById("display-name").textContent = name;
 
     let timers = {}; // { taskId: startTime }
+    let intervals = {}; // track setInterval IDs to avoid duplicates
     let treasureTotal = 0;
 
     function updateTreasureDisplay() {
-      // optional, if treasure total is displayed on this page
+      // optional if treasure total is displayed
     }
 
     function addTask() {
@@ -265,7 +265,6 @@
                 </div>
               `;
 
-              // If task is running → show in floating box
               if (timers[id]) {
                 activeBox.innerHTML = `
                   <h3>⏳ Ongoing Task</h3>
@@ -296,6 +295,12 @@
       if (!startTime) return;
       const actualMinutes = Math.round((Date.now() - startTime) / 60000);
       delete timers[id];
+
+      if (intervals[id]) {
+        clearInterval(intervals[id]);
+        delete intervals[id];
+      }
+
       const diff = estimated - actualMinutes;
       treasureTotal += diff;
       updateTreasureDisplay();
@@ -309,10 +314,12 @@
     }
 
     function startLiveTimer(id) {
+      if (intervals[id]) return; // prevent multiple intervals
+
       const timerDiv = document.getElementById(`timer-${id}`);
       if (!timerDiv) return;
 
-      setInterval(() => {
+      intervals[id] = setInterval(() => {
         const elapsed = Math.floor((Date.now() - timers[id]) / 60000);
         timerDiv.textContent = `${elapsed} min`;
       }, 1000);
@@ -323,7 +330,6 @@
       window.location.reload();
     }
 
-    // Load treasure from DB if exists
     db.collection("users").doc(username).get().then(doc => {
       if (doc.exists && doc.data().treasure) {
         treasureTotal = doc.data().treasure;
