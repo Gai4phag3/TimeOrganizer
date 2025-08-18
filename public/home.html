@@ -118,6 +118,7 @@
       border: none;
       cursor: pointer;
       font-size: 13px;
+      margin-left: 5px;
     }
 
     .btn.start {
@@ -127,6 +128,11 @@
 
     .btn.stop {
       background: #e67e22;
+      color: white;
+    }
+
+    .btn.pause {
+      background: #f39c12;
       color: white;
     }
 
@@ -172,6 +178,13 @@
       ⏳ Treasure Box
     </a>
 
+    <div style="margin-bottom: 20px;">
+      <button onclick="clearHistory()"
+        style="background:#e74c3c;color:white;padding:8px 12px;border:none;border-radius:6px;cursor:pointer;">
+        🗑 Clear History
+      </button>
+    </div>
+
     <div class="task-form">
       <input type="text" id="task-name" placeholder="Task name">
       <input type="number" id="estimated-time" placeholder="Estimated time (minutes)">
@@ -213,12 +226,8 @@
     document.getElementById("display-name").textContent = name;
 
     let timers = {}; // { taskId: startTime }
-    let liveTimerInterval = null;
+    let pausedTimers = {}; // { taskId: elapsedTime }
     let treasureTotal = 0;
-
-    function updateTreasureDisplay() {
-      // optional: update treasure total UI if needed
-    }
 
     function addTask() {
       const taskName = document.getElementById("task-name").value.trim();
@@ -258,8 +267,11 @@
 
             if (!task.completed) {
               let controls = timers[id]
-                ? `<button class="btn stop" onclick="stopTask('${id}', ${task.estimated}, '${task.taskName}')">Stop</button>`
-                : `<button class="btn start" onclick="startTask('${id}', '${task.taskName}')">Start</button>`;
+                ? `<button class="btn stop" onclick="stopTask('${id}', ${task.estimated}, '${task.taskName}')">Stop</button>
+                   <button class="btn pause" onclick="pauseTask('${id}')">Pause</button>`
+                : (pausedTimers[id]
+                  ? `<button class="btn start" onclick="startTask('${id}', '${task.taskName}')">Resume</button>`
+                  : `<button class="btn start" onclick="startTask('${id}', '${task.taskName}')">Start</button>`);
 
               tasksDiv.innerHTML += `
                 <div class="task-item">
@@ -286,6 +298,7 @@
               <h3>⏳ Ongoing Task</h3>
               <div><strong>${taskName}</strong></div>
               <div class="timer" id="timer-${activeTaskId}">0m 0s</div>
+              <button class="btn pause" onclick="pauseTask('${activeTaskId}')">Pause</button>
             `;
             startLiveTimer(activeTaskId);
           }
@@ -293,58 +306,64 @@
     }
 
     function startTask(id, name) {
-      timers[id] = Date.now();
+      if (pausedTimers[id]) {
+        timers[id] = Date.now() - pausedTimers[id];
+        delete pausedTimers[id];
+      } else {
+        timers[id] = Date.now();
+      }
+      loadTasks();
+    }
+
+    function pauseTask(id) {
+      if (!timers[id]) return;
+      pausedTimers[id] = Date.now() - timers[id];
+      delete timers[id];
       loadTasks();
     }
 
     function stopTask(id, estimated, name) {
-      const startTime = timers[id];
-      if (!startTime) return;
-      const actualMinutes = Math.round((Date.now() - startTime) / 60000);
+      let elapsed = timers[id] ? Math.round((Date.now() - timers[id]) / 60000) : Math.round((pausedTimers[id] || 0) / 60000);
       delete timers[id];
-      const diff = estimated - actualMinutes;
-      treasureTotal += diff;
-      updateTreasureDisplay();
+      delete pausedTimers[id];
       db.collection("tasks").doc(id).update({
-        actual: actualMinutes,
-        completed: true
+        completed: true,
+        actual: elapsed
       });
-      db.collection("users").doc(username).set({
-        treasure: treasureTotal
-      }, { merge: true });
+      treasureTotal += elapsed; // optional treasure logic
+      loadTasks();
+    }
+
+    function clearHistory() {
+      if (!confirm("Are you sure you want to clear all completed tasks?")) return;
+      db.collection("tasks")
+        .where("user", "==", username)
+        .where("completed", "==", true)
+        .get()
+        .then(snapshot => {
+          snapshot.forEach(doc => db.collection("tasks").doc(doc.id).delete());
+        });
     }
 
     function startLiveTimer(id) {
-      const timerDiv = document.getElementById(`timer-${id}`);
-      if (!timerDiv) return;
+      const timerEl = document.getElementById(`timer-${id}`);
+      if (!timerEl) return;
 
-      if (liveTimerInterval) clearInterval(liveTimerInterval);
-
-      liveTimerInterval = setInterval(() => {
-        if (!timers[id]) {
-          clearInterval(liveTimerInterval);
-          timerDiv.textContent = "0m 0s";
-          return;
-        }
-        const elapsedMs = Date.now() - timers[id];
-        const minutes = Math.floor(elapsedMs / 60000);
-        const seconds = Math.floor((elapsedMs % 60000) / 1000);
-        timerDiv.textContent = `${minutes}m ${seconds}s`;
-      }, 1000);
+      function update() {
+        if (!timers[id]) return;
+        const diff = Date.now() - timers[id];
+        const minutes = Math.floor(diff / 60000);
+        const seconds = Math.floor((diff % 60000) / 1000);
+        timerEl.textContent = `${minutes}m ${seconds}s`;
+        requestAnimationFrame(update);
+      }
+      update();
     }
 
     function logout() {
       localStorage.clear();
-      window.location.reload();
+      window.location.href = "index.html";
     }
-
-    // Load treasure from DB if exists
-    db.collection("users").doc(username).get().then(doc => {
-      if (doc.exists && doc.data().treasure) {
-        treasureTotal = doc.data().treasure;
-        updateTreasureDisplay();
-      }
-    });
 
     loadTasks();
   </script>
