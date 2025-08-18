@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Treasure Box</title>
+    <link rel="icon" href="/favicon.png" type="image/x-icon" />
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background: #f4f4f4;
+        }
+
+        nav {
+            background: #f39c12;
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        nav h1 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        nav button {
+            background: #e74c3c;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        nav button:hover {
+            background: #c0392b;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+        }
+
+        .treasure-total {
+            background: #f1c40f;
+            color: #2c3e50;
+            font-size: 22px;
+            font-weight: bold;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .goal-form,
+        .goal-list {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        .goal-form input {
+            padding: 8px;
+            margin: 5px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+
+        .goal-form button {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            margin-left: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .goal-form button:hover {
+            background: #219150;
+        }
+
+        .goal-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+            align-items: center;
+        }
+
+        .goal-item:last-child {
+            border-bottom: none;
+        }
+
+        .claim-btn {
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            background: #3498db;
+            color: white;
+        }
+
+        .claim-btn:hover {
+            background: #2980b9;
+        }
+
+        .back-button {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 16px;
+            background: #3498db;
+            color: white;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .back-button:hover {
+            background: #2980b9;
+        }
+    </style>
+</head>
+
+<body>
+    <nav>
+        <h1>Treasure Box</h1>
+        <button onclick="logout()">Logout</button>
+    </nav>
+
+    <div class="container">
+        <div class="treasure-total" id="treasure-total">
+            Total Treasure: 0 min
+        </div>
+
+        <div class="goal-form">
+            <h2>Add New Goal</h2>
+            <input type="text" id="goal-name" placeholder="Goal name">
+            <input type="number" id="goal-time" placeholder="Required time (min)">
+            <input type="text" id="goal-reward" placeholder="Reward description">
+            <button onclick="addGoal()">Add Goal</button>
+        </div>
+
+        <div class="goal-list">
+            <h2>Available Goals</h2>
+            <div id="goals"></div>
+        </div>
+
+        <a href="dashboard.html" class="back-button">⬅ Back to Dashboard</a>
+    </div>
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyABwjZH3BgWW4eFXLx5PE-GVtumTeBMlsQ",
+            authDomain: "timeorganization-d6343.firebaseapp.com",
+            projectId: "timeorganization-d6343",
+            storageBucket: "timeorganization-d6343.appspot.com",
+            messagingSenderId: "706925146380",
+            appId: "1:706925146380:web:aee86fcfcdd22c020bd929",
+            measurementId: "G-296T95D1ZP"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const username = localStorage.getItem("username") || "guest";
+
+        let treasureTotal = 0;
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = "index.html";
+        }
+
+        function updateTreasureDisplay() {
+            document.getElementById("treasure-total").textContent = `Total Treasure: ${treasureTotal} min`;
+        }
+
+        function loadTreasure() {
+            db.collection("users").doc(username).get().then(doc => {
+                if (doc.exists && doc.data().treasure) {
+                    treasureTotal = doc.data().treasure;
+                    updateTreasureDisplay();
+                }
+            });
+        }
+
+        function addGoal() {
+            const name = document.getElementById("goal-name").value.trim();
+            const time = parseInt(document.getElementById("goal-time").value);
+            const reward = document.getElementById("goal-reward").value.trim();
+            if (!name || !time || !reward) {
+                alert("Fill all fields");
+                return;
+            }
+            db.collection("goals").add({
+                user: username,
+                name,
+                requiredTime: time,
+                reward,
+                claimed: false
+            });
+            document.getElementById("goal-name").value = "";
+            document.getElementById("goal-time").value = "";
+            document.getElementById("goal-reward").value = "";
+        }
+
+        function loadGoals() {
+            db.collection("goals")
+                .where("user", "==", username)
+                .onSnapshot(snapshot => {
+                    const goalsDiv = document.getElementById("goals");
+                    goalsDiv.innerHTML = "";
+                    snapshot.forEach(doc => {
+                        const goal = doc.data();
+                        const id = doc.id;
+                        const canClaim = treasureTotal >= goal.requiredTime && !goal.claimed;
+                        goalsDiv.innerHTML += `
+              <div class="goal-item">
+                <span><strong>${goal.name}</strong> - ${goal.reward} (requires ${goal.requiredTime} min)</span>
+                <button class="claim-btn" ${canClaim ? '' : 'disabled'} onclick="claimGoal('${id}', ${goal.requiredTime})">${goal.claimed ? 'Claimed' : 'Claim'}</button>
+              </div>
+            `;
+                    });
+                });
+        }
+
+        function claimGoal(goalId, requiredTime) {
+            if (treasureTotal < requiredTime) {
+                alert("Not enough treasure to claim this goal");
+                return;
+            }
+            treasureTotal -= requiredTime;
+            updateTreasureDisplay();
+            db.collection("users").doc(username).set({
+                treasure: treasureTotal
+            }, { merge: true });
+            db.collection("goals").doc(goalId).update({
+                claimed: true
+            });
+        }
+
+        loadTreasure();
+        loadGoals();
+    </script>
+</body>
+
+</html>
