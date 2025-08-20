@@ -58,22 +58,30 @@
             margin-bottom: 20px;
         }
 
-        .goal-form input,
-        .goal-form button {
+        .form-section {
+            background: white;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .form-section input,
+        .form-section button {
             padding: 8px;
             margin: 5px;
             border-radius: 4px;
             font-size: 14px;
         }
 
-        .goal-form button {
+        .form-section button {
             background: #3498db;
             color: white;
             border: none;
             cursor: pointer;
         }
 
-        .goal-form button:hover {
+        .form-section button:hover {
             background: #2980b9;
         }
 
@@ -124,12 +132,22 @@
     <div class="container">
         <div class="treasure-total">Saved Time: <span id="treasure-total">0</span> min</div>
 
-        <div class="goal-form">
+        <!-- Add Treasure Section -->
+        <div class="form-section">
+            <h2>Add Saved Time</h2>
+            <input type="number" id="add-minutes" placeholder="Minutes saved">
+            <button onclick="addTreasureFromInput()">Add</button>
+        </div>
+
+        <!-- Goal Form Section -->
+        <div class="form-section">
+            <h2>Create Goal</h2>
             <input type="text" id="goal-name" placeholder="Goal Name">
             <input type="number" id="goal-cost" placeholder="Time Cost (min)">
             <button onclick="addGoal()">Add Goal</button>
         </div>
 
+        <!-- Goals List -->
         <div class="goal-list">
             <h2>Goals</h2>
             <div id="goals"></div>
@@ -155,7 +173,6 @@
         const db = firebase.firestore();
 
         const username = localStorage.getItem("username") || "guest";
-
         let treasureTotal = 0;
 
         function logout() {
@@ -166,11 +183,13 @@
             document.getElementById("treasure-total").textContent = treasureTotal;
         }
 
+        // Add Goal
         function addGoal() {
             const name = document.getElementById("goal-name").value.trim();
             const cost = parseInt(document.getElementById("goal-cost").value);
-            if (!name || !cost) {
-                alert("Enter goal name and cost.");
+
+            if (!name || isNaN(cost) || cost <= 0) {
+                alert("Enter a valid goal name and cost (must be > 0).");
                 return;
             }
 
@@ -184,17 +203,44 @@
             });
         }
 
+        // Pay for a goal
         function payForGoal(goalId, cost) {
             if (treasureTotal >= cost) {
                 treasureTotal -= cost;
                 updateTreasureDisplay();
-                db.collection("users").doc(username).set({ treasure: treasureTotal }, { merge: true });
-                alert("Goal unlocked!");
+
+                // update user's treasure in DB
+                db.collection("users").doc(username)
+                    .set({ treasure: treasureTotal }, { merge: true });
+
+                // remove the goal from DB
+                db.collection("goals").doc(goalId).delete();
+
+                alert("🎉 Goal unlocked!");
             } else {
                 alert("Not enough saved time!");
             }
         }
 
+        // Add treasure manually
+        function addTreasure(minutes) {
+            if (isNaN(minutes) || minutes <= 0) {
+                alert("Enter a valid number of minutes.");
+                return;
+            }
+            treasureTotal += minutes;
+            updateTreasureDisplay();
+            db.collection("users").doc(username)
+                .set({ treasure: treasureTotal }, { merge: true });
+        }
+
+        function addTreasureFromInput() {
+            const minutes = parseInt(document.getElementById("add-minutes").value);
+            addTreasure(minutes);
+            document.getElementById("add-minutes").value = "";
+        }
+
+        // Load goals from Firestore
         function loadGoals() {
             db.collection("goals").where("user", "==", username)
                 .onSnapshot(snapshot => {
@@ -204,11 +250,11 @@
                         const goal = doc.data();
                         const id = doc.id;
                         goalsDiv.innerHTML += `
-              <div class="goal-item">
-                <span>${goal.name} - ${goal.cost} min</span>
-                <button class="btn pay" onclick="payForGoal('${id}', ${goal.cost})">Pay</button>
-              </div>
-            `;
+                            <div class="goal-item">
+                                <span>${goal.name} - ${goal.cost} min</span>
+                                <button class="btn pay" onclick="payForGoal('${id}', ${goal.cost})">Pay</button>
+                            </div>
+                        `;
                     });
                 });
         }
